@@ -2244,6 +2244,725 @@ func die() -> void:
     
     await get_tree().create_timer(2.0).timeout
     queue_free()
+    # In AcidPool.gd - attach and configure in inspector or code
+func setup_bubbles() -> void:
+    var bubbles = $Bubbles
+    bubbles.amount = 30
+    bubbles.lifetime = 2.0
+    bubbles.emission_shape = GPUParticles2D.EMISSION_SHAPE_RECTANGLE
+    bubbles.emission_rect_extents = Vector2(60, 20)
+    bubbles.velocity.x_curve = null
+    bubbles.velocity.y_min = -60
+    bubbles.velocity.y_max = -20
+    bubbles.color = Color(0, 1, 0.6, 0.7)
+    func _ready() -> void:
+    var splash = $Splash
+    splash.emitting = true
+    AudioManager.play_acid_sizzle()
+    
+    await get_tree().create_timer(0.8).timeout
+    splash.emitting = false
+    extends Control
+
+@onready var health_bar: ProgressBar = $HealthBar
+@onready var name_label: Label = $BossName
+
+func show_for_boss(boss: Node, boss_name: String) -> void:
+    name_label.text = boss_name
+    health_bar.max_value = boss.max_health
+    health_bar.value = boss.health
+    visible = true
+    
+    # Acid green color
+    health_bar.modulate = Color(0.2, 1.0, 0.5)
+
+func _process(delta: float) -> void:
+    if is_instance_valid(boss):
+        health_bar.value = boss.health
+    else:
+        queue_free()
+        var health_ui = preload("res://scenes/ui/AcidBossHealthBar.tscn").instantiate()
+get_tree().get_first_node_in_group("ui").add_child(health_ui)
+health_ui.show_for_boss(self, "LEGION OF LIQUIDATION")
+# In AcidPool.gd
+@onready var anim_player: AnimationPlayer = $AnimationPlayer
+
+func _ready() -> void:
+    anim_player.play("acid_splash")
+    func die() -> void:
+    change_state(State.DEAD)
+    
+    if has_node("AnimatedSprite2D"):
+        var sprite = $AnimatedSprite2D
+        if sprite.sprite_frames.has_animation("death"):
+            sprite.play("death")
+            await sprite.animation_finished
+    
+    # Acid death particles + shake
+    spawn_acid_death_effects()
+    queue_free()
+
+func spawn_acid_death_effects() -> void:
+    var death_fx = preload("res://scenes/particles/AcidDeathExplosion.tscn").instantiate()
+    death_fx.global_position = global_position
+    get_parent().add_child(death_fx)
+    
+    get_tree().get_first_node_in_group("camera").apply_acid_shake(55)
+    shader_type particles;
+
+uniform vec4 acid_color : source_color = vec4(0.0, 1.0, 0.6, 0.9);
+uniform float glow_intensity : hint_range(0.0, 5.0) = 1.5;
+uniform float dissolve_speed : hint_range(0.0, 10.0) = 2.0;
+
+void vertex() {
+    // Slight wobble for organic acid feel
+    VERTEX.x += sin(TIME * 3.0 + VERTEX.y * 0.1) * 2.0;
+}
+
+void fragment() {
+    vec4 color = acid_color;
+    
+    // Glowing edge effect
+    float glow = sin(UV.y * 10.0 + TIME * dissolve_speed) * 0.5 + 0.5;
+    color.rgb += glow * glow_intensity * vec3(0.0, 0.4, 0.2);
+    
+    // Fade out over particle lifetime
+    color.a *= (1.0 - CUSTOM.x); // CUSTOM.x = particle age (0 to 1)
+    
+    COLOR = color;
+}
+extends Camera2D
+class_name GameCamera
+
+@export var max_shake: float = 50.0
+@export var shake_fade: float = 6.0
+
+var shake_strength: float = 0.0
+var noise: FastNoiseLite
+
+func _ready() -> void:
+    noise = FastNoiseLite.new()
+    noise.seed = randi()
+    noise.frequency = 1.8
+
+func _process(delta: float) -> void:
+    if shake_strength > 0:
+        shake_strength = lerp(shake_strength, 0.0, shake_fade * delta)
+        
+        var shake_offset = Vector2(
+            noise.get_noise_1d(Time.get_ticks_msec() * 0.015) * shake_strength,
+            noise.get_noise_1d(Time.get_ticks_msec() * 0.015 + 50) * shake_strength
+        )
+        offset = shake_offset
+
+func apply_shake(strength: float = 20.0) -> void:
+    shake_strength = min(strength, max_shake)
+
+func apply_acid_shake(strength: float = 25.0) -> void:
+    # Acid feels more intense and slightly longer
+    shake_strength = min(strength * 1.3, max_shake)
+    shake_fade = 4.5  # Slower fade for acid
+    # Normal explosion
+camera.apply_shake(30)
+
+# Acid attack
+camera.apply_acid_shake(35)
+extends Node2D
+
+@onready var camera: Camera2D = $Camera2D
+@onready var fade_rect: ColorRect = $FadeRect
+@onready var victory_label: Label = $VictoryLabel
+@onready var anim_player: AnimationPlayer = $AnimationPlayer
+
+func _ready() -> void:
+    victory_label.text = "The Church of the Pump stands eternal.\nYou have reclaimed the flame."
+    victory_label.modulate.a = 0.0
+    
+    # Start cinematic sequence
+    start_cinematic()
+
+func start_cinematic() -> void:
+    # Slow camera pan (if you have a wide background)
+    var tween = create_tween()
+    tween.tween_property(camera, "position:x", camera.position.x + 300, 6.0)
+    
+    # Fade in text
+    var text_tween = create_tween()
+    text_tween.tween_property(victory_label, "modulate:a", 1.0, 2.0)
+    
+    # Optional: Play victory particles
+    if has_node("VictoryParticles"):
+        $VictoryParticles.emitting = true
+    
+    # Wait then allow input to return to menu
+    await get_tree().create_timer(8.0).timeout
+    fade_to_menu()
+
+func fade_to_menu() -> void:
+    var fade_tween = create_tween()
+    fade_tween.tween_property(fade_rect, "color:a", 1.0, 2.0)
+    await fade_tween.finished
+    get_tree().change_scene_to_file("res://scenes/ui/MainMenu.tscn")
+    # Example setup in _ready() of AcidPool.gd
+func setup_acid_particles() -> void:
+    var bubbles = $Bubbles
+    var material = bubbles.process_material as ParticleProcessMaterial
+    
+    if material:
+        material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RECTANGLE
+        material.emission_rect_extents = Vector2(70, 25)
+        
+        material.direction = Vector3(0, -1, 0)
+        material.spread = 15.0
+        material.initial_velocity_min = 25.0
+        material.initial_velocity_max = 55.0
+        
+        material.gravity = Vector3(0, -20, 0)           # Gentle upward float
+        material.damping_min = 0.8
+        material.damping_max = 1.2
+        
+        material.scale_min = 0.6
+        material.scale_max = 1.4
+        material.scale_curve = null                     # Can add curve for shrinking
+        
+        material.color = Color(0.0, 1.0, 0.55, 0.85)    # Acid green
+        shader_type canvas_item;
+
+uniform float intensity : hint_range(0.0, 1.0) = 0.6;
+uniform float time_scale : hint_range(0.1, 5.0) = 2.0;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    
+    // Subtle acid distortion
+    float distortion = sin(uv.y * 40.0 + TIME * time_scale) * 0.003;
+    uv.x += distortion * intensity;
+    
+    vec3 color = texture(SCREEN_TEXTURE, uv).rgb;
+    
+    // Slight green tint
+    color.g = min(color.g + intensity * 0.15, 1.0);
+    
+    COLOR = vec4(color, 1.0);
+}
+shader_type canvas_item;
+
+uniform float intensity : hint_range(0.0, 1.0) = 0.6;
+uniform float time_scale : hint_range(0.1, 5.0) = 2.0;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    
+    // Subtle acid distortion
+    float distortion = sin(uv.y * 40.0 + TIME * time_scale) * 0.003;
+    uv.x += distortion * intensity;
+    
+    vec3 color = texture(SCREEN_TEXTURE, uv).rgb;
+    
+    // Slight green tint
+    color.g = min(color.g + intensity * 0.15, 1.0);
+    
+    COLOR = vec4(color, 1.0);
+}
+shader_type canvas_item;
+
+uniform float intensity : hint_range(0.0, 1.0) = 0.5;
+uniform float aberration_amount : hint_range(0.0, 0.05) = 0.008;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    
+    // Chromatic aberration
+    float r = texture(SCREEN_TEXTURE, uv + vec2(aberration_amount, 0.0) * intensity).r;
+    float g = texture(SCREEN_TEXTURE, uv).g;
+    float b = texture(SCREEN_TEXTURE, uv - vec2(aberration_amount, 0.0) * intensity).b;
+    
+    vec3 color = vec3(r, g, b);
+    
+    COLOR = vec4(color, 1.0);
+}
+# Example: Trigger during acid attack
+func trigger_acid_effect(duration: float = 1.5) -> void:
+    var aberration = $ChromaticAberration  # Your ColorRect
+    var tween = create_tween()
+    tween.tween_property(aberration.material, "shader_parameter/intensity", 0.7, 0.2)
+    tween.tween_property(aberration.material, "shader_parameter/intensity", 0.0, duration)
+    # In AcidPool.gd or a dedicated setup function
+func setup_acid_particles() -> void:
+    # === BUBBLES ===
+    var bubbles = $Bubbles
+    var mat = bubbles.process_material as ParticleProcessMaterial
+    
+    if mat:
+        mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RECTANGLE
+        mat.emission_rect_extents = Vector2(65, 22)
+        mat.direction = Vector3(0, -1, 0)
+        mat.spread = 18.0
+        mat.initial_velocity_min = 30.0
+        mat.initial_velocity_max = 65.0
+        mat.gravity = Vector3(0, -25, 0)
+        mat.damping_min = 0.6
+        mat.damping_max = 1.1
+        mat.scale_min = 0.5
+        mat.scale_max = 1.6
+        mat.color = Color(0.0, 0.95, 0.55, 0.9)
+    
+    # === MIST ===
+    var mist = $Mist
+    var mist_mat = mist.process_material as ParticleProcessMaterial
+    
+    if mist_mat:
+        mist_mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RECTANGLE
+        mist_mat.emission_rect_extents = Vector2(80, 30)
+        mist_mat.direction = Vector3(0, -0.3, 0)
+        mist_mat.spread = 40.0
+        mist_mat.initial_velocity_min = 5.0
+        mist_mat.initial_velocity_max = 15.0
+        mist_mat.gravity = Vector3(0, -8, 0)
+        mist_mat.damping_min = 0.3
+        mist_mat.damping_max = 0.6
+        mist_mat.scale_min = 1.2
+        mist_mat.scale_max = 2.8
+        mist_mat.color = Color(0.0, 1.0, 0.6, 0.35)
+       shader_type canvas_item;
+
+uniform sampler2D acid_texture : hint_default_white;
+uniform vec4 acid_color : source_color = vec4(0.0, 1.0, 0.55, 1.0);
+uniform float glow_strength : hint_range(0.0, 3.0) = 1.2;
+uniform float wobble_speed : hint_range(0.1, 10.0) = 3.0;
+
+void fragment() {
+    // Wobble UV using sine
+    vec2 wobble_uv = UV;
+    wobble_uv.x += sin(UV.y * 12.0 + TIME * wobble_speed) * 0.015;
+    wobble_uv.y += cos(UV.x * 8.0 + TIME * wobble_speed) * 0.01;
+
+    vec4 tex = texture(acid_texture, wobble_uv);
+
+    // Base acid color
+    vec3 color = tex.rgb * acid_color.rgb;
+
+    // Fresnel-style edge glow
+    float fresnel = pow(1.0 - abs(dot(NORMAL, vec3(0.0, 0.0, 1.0))), 2.0);
+    color += fresnel * acid_color.rgb * glow_strength;
+
+    COLOR = vec4(color, tex.a * acid_color.a);
+}
+void fragment() {
+    vec2 uv = UV;
+    
+    // Organic wobble using sine + fract
+    float wobble = sin(TIME * 2.0 + fract(uv.y * 5.0) * 6.28) * 0.02;
+    uv.x += wobble;
+    
+    // Smooth fade based on distance from center
+    float dist = length(uv - vec2(0.5));
+    float mask = smoothstep(0.6, 0.3, dist);
+    
+    COLOR = vec4(0.0, 1.0, 0.6, mask);
+}
+shader_type canvas_item;
+
+uniform float intensity : hint_range(0.0, 2.0) = 0.6;
+uniform float aberration_strength : hint_range(0.0, 0.03) = 0.012;
+uniform float vignette : hint_range(0.0, 1.0) = 0.3;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    
+    // Chromatic aberration with slight curve
+    float offset = aberration_strength * intensity;
+    float r = texture(SCREEN_TEXTURE, uv + vec2(offset, 0.0)).r;
+    float g = texture(SCREEN_TEXTURE, uv).g;
+    float b = texture(SCREEN_TEXTURE, uv - vec2(offset * 0.8, 0.0)).b;
+    
+    vec3 color = vec3(r, g, b);
+    
+    // Optional vignette
+    float vig = smoothstep(0.7, 0.3, length(uv - 0.5));
+    color *= mix(1.0, vig, vignette);
+    
+    COLOR = vec4(color, 1.0);
+}
+shader_type canvas_item;
+
+uniform float intensity : hint_range(0.0, 1.5) = 0.7;
+uniform float distortion : hint_range(0.0, 0.02) = 0.008;
+uniform float green_boost : hint_range(0.0, 0.5) = 0.12;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    
+    // Acid distortion
+    float wave = sin(uv.y * 35.0 + TIME * 4.0) * distortion * intensity;
+    uv.x += wave;
+    
+    vec3 color = texture(SCREEN_TEXTURE, uv).rgb;
+    
+    // Green acid tint
+    color.g = min(color.g + green_boost * intensity, 1.0);
+    
+    // Subtle contrast boost
+    color = pow(color, vec3(0.95));
+    
+    COLOR = vec4(color, 1.0);
+}
+# Example: Trigger acid screen effect
+func trigger_acid_screen(duration: float = 1.8) -> void:
+    var effect = $AcidScreenEffect  # Your ColorRect
+    var tween = create_tween()
+    tween.tween_property(effect.material, "shader_parameter/intensity", 1.0, 0.3)
+    tween.tween_property(effect.material, "shader_parameter/intensity", 0.0, duration)
+    var noise_texture = NoiseTexture2D.new()
+noise_texture.noise = FastNoiseLite.new()
+noise_texture.width = 512
+noise_texture.height = 512
+
+# Assign to your material
+material.set_shader_parameter("noise_texture", noise_texture)
+uniform sampler2D noise_texture : hint_default_black;
+
+void fragment() {
+    float n = texture(noise_texture, UV * 3.0).r;
+    
+    // Use noise for acid distortion
+    vec2 distorted_uv = UV;
+    distorted_uv.x += n * 0.03;
+    
+    COLOR = texture(TEXTURE, distorted_uv);
+}
+// Simple 2D value noise
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+// Fractal Brownian Motion (fBm) - layered noise
+float fbm(vec2 p) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    float frequency = 1.0;
+    
+    for (int i = 0; i < 5; i++) {
+        value += amplitude * noise(p * frequency);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    return value;
+}
+void fragment() {
+    float n = fbm(UV * 4.0 + TIME * 0.3);
+    float alpha = smoothstep(0.3, 0.7, n);
+    
+    COLOR = vec4(0.0, 1.0, 0.6, alpha * 0.4);
+}
+shader_type canvas_item;     // For 2D / UI
+shader_type spatial;         // For 3D
+shader_type particles;       // For particle shaders
+uniform float intensity : hint_range(0.0, 1.0) = 0.5;
+uniform vec4 color : source_color;
+uniform sampler2D texture : hint_default_white;
+varying vec2 world_uv;
+precision mediump float;   // Usually not needed in Godot 4
+shader_type canvas_item;
+
+uniform float intensity : hint_range(0.0, 2.0) = 1.0;
+uniform vec4 tint_color : source_color = vec4(1.0);
+
+void vertex() {
+    // Vertex code here
+}
+
+void fragment() {
+    // Fragment code here
+}
+// Simple 2D hash function
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+// 2D Value Noise
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+// Fractal Brownian Motion (Animated)
+float fbm(vec2 p, float time) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    float frequency = 1.0;
+    
+    for (int i = 0; i < 6; i++) {
+        value += amplitude * noise(p * frequency + time * 0.3);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    return value;
+}
+
+void fragment() {
+    vec2 uv = UV * 3.0;
+    
+    float n = fbm(uv, TIME);
+    
+    // Use for acid distortion or alpha
+    float distortion = (n - 0.5) * 0.04;
+    vec2 final_uv = UV + vec2(distortion, distortion * 0.5);
+    
+    COLOR = texture(TEXTURE, final_uv);
+}
+# In your AcidPool or effect script
+var noise_tex = NoiseTexture2D.new()
+noise_tex.noise = FastNoiseLite.new()
+noise_tex.width = 512
+noise_tex.height = 512
+noise_tex.noise.fractal_octaves = 6
+noise_tex.noise.fractal_lacunarity = 2.0
+
+material.set_shader_parameter("noise_tex", noise_tex)
+material.set_shader_parameter("time_scale", 0.4)
+uniform sampler2D noise_tex;
+uniform float time_scale = 0.4;
+
+void fragment() {
+    vec2 animated_uv = UV * 2.5 + TIME * time_scale;
+    float n = texture(noise_tex, animated_uv).r;
+    
+    // Animated acid distortion
+    vec2 distorted = UV + (n - 0.5) * 0.035;
+    COLOR = texture(TEXTURE, distorted);
+}
+uniform sampler2D noise_tex;
+uniform float time_scale = 0.4;
+
+void fragment() {
+    vec2 animated_uv = UV * 2.5 + TIME * time_scale;
+    float n = texture(noise_tex, animated_uv).r;
+    
+    // Animated acid distortion
+    vec2 distorted = UV + (n - 0.5) * 0.035;
+    COLOR = texture(TEXTURE, distorted);
+}
+# In your AcidPool or effect script
+var noise_tex = NoiseTexture2D.new()
+noise_tex.noise = FastNoiseLite.new()
+noise_tex.width = 512
+noise_tex.height = 512
+noise_tex.noise.fractal_octaves = 6
+noise_tex.noise.fractal_lacunarity = 2.0
+
+material.set_shader_parameter("noise_tex", noise_tex)
+material.set_shader_parameter("time_scale", 0.4)
+uniform sampler2D noise_tex;
+uniform float time_scale = 0.4;
+
+void fragment() {
+    vec2 animated_uv = UV * 2.5 + TIME * time_scale;
+    float n = texture(noise_tex, animated_uv).r;
+    
+    // Animated acid distortion
+    vec2 distorted = UV + (n - 0.5) * 0.035;
+    COLOR = texture(TEXTURE, distorted);
+}
+shader_type canvas_item;
+
+uniform float intensity : hint_range(0.0, 2.0) = 0.0;
+uniform float distortion_strength : hint_range(0.0, 0.015) = 0.007;
+uniform float green_tint : hint_range(0.0, 0.4) = 0.15;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    
+    // Animated acid distortion
+    float wave = sin(uv.y * 28.0 + TIME * 3.5) * distortion_strength * intensity;
+    uv.x += wave;
+    
+    vec3 color = texture(SCREEN_TEXTURE, uv).rgb;
+    
+    // Acid green color shift
+    color.g = min(color.g + green_tint * intensity, 1.0);
+    
+    // Slight contrast boost
+    color = pow(color, vec3(0.92));
+    
+    COLOR = vec4(color, 1.0);
+}
+func trigger_acid_post_effect(duration: float = 2.0) -> void:
+    var effect = $PostProcessing/AcidEffect
+    var tween = create_tween()
+    tween.tween_property(effect.material, "shader_parameter/intensity", 1.0, 0.25)
+    tween.tween_property(effect.material, "shader_parameter/intensity", 0.0, duration)
+    // Perlin noise implementation
+vec2 fade(vec2 t) {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+float perlin(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    
+    // Four corners
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    
+    vec2 u = fade(f);
+    
+    return mix(
+        mix(a, b, u.x),
+        mix(c, d, u.x),
+        u.y
+    );
+}
+
+// Fractal Perlin (fBm variant)
+float perlin_fbm(vec2 p, int octaves) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    float frequency = 1.0;
+    
+    for (int i = 0; i < octaves; i++) {
+        value += amplitude * perlin(p * frequency);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    return value;
+}
+
+void fragment() {
+    vec2 uv = UV * 4.0 + TIME * 0.2;
+    
+    float n = perlin_fbm(uv, 5);
+    
+    // Use for acid distortion or organic movement
+    vec2 distorted = UV + (n - 0.5) * 0.025;
+    
+    COLOR = texture(TEXTURE, distorted);
+}
+var noise = FastNoiseLite.new()
+noise.noise_type = FastNoiseLite.TYPE_PERLIN
+noise.fractal_octaves = 5
+noise.frequency = 0.02
+
+var noise_tex = NoiseTexture2D.new()
+noise_tex.noise = noise
+noise_tex.width = 512
+noise_tex.height = 512
+
+# Assign to shader
+material.set_shader_parameter("perlin_noise", noise_tex)
+uniform sampler2D perlin_noise;
+uniform float time_scale = 0.25;
+
+void fragment() {
+    vec2 animated_uv = UV * 3.0 + TIME * time_scale;
+    float n = texture(perlin_noise, animated_uv).r;
+    
+    // Smooth acid-like distortion
+    vec2 offset = (n - 0.5) * 0.03;
+    COLOR = texture(TEXTURE, UV + offset);
+}
+@tool
+extends CompositorEffect
+class_name AcidDistortionEffect
+
+@export var intensity: float = 0.0
+
+func _render_callback(p_render_data: RenderData, p_render_scene_buffers: RenderSceneBuffersRD) -> void:
+    # This is where you would apply custom rendering
+    # For now, we recommend using a full-screen shader approach for simplicity
+    pass
+    # Control from code
+func set_acid_intensity(value: float) -> void:
+    $CanvasLayer/ColorRect.material.set_shader_parameter("intensity", value)
+    shader_type canvas_item;
+
+uniform float intensity : hint_range(0.0, 2.0) = 0.0;
+uniform float aberration_strength : hint_range(0.0, 0.04) = 0.012;
+uniform float vignette_strength : hint_range(0.0, 1.0) = 0.25;
+
+void fragment() {
+    vec2 uv = SCREEN_UV;
+    
+    // Chromatic aberration
+    float offset = aberration_strength * intensity;
+    float r = texture(SCREEN_TEXTURE, uv + vec2(offset, 0.0)).r;
+    float g = texture(SCREEN_TEXTURE, uv).g;
+    float b = texture(SCREEN_TEXTURE, uv - vec2(offset * 0.7, 0.0)).b;
+    
+    vec3 color = vec3(r, g, b);
+    
+    // Subtle vignette
+    float vig = smoothstep(0.8, 0.4, length(uv - 0.5));
+    color *= mix(1.0, vig, vignette_strength * intensity);
+    
+    COLOR = vec4(color, 1.0);
+}
+func trigger_chromatic_aberration(strength: float = 0.8, duration: float = 1.5) -> void:
+    var effect = $CanvasLayer/ChromaticAberration  # Your ColorRect
+    var tween = create_tween()
+    tween.tween_property(effect.material, "shader_parameter/intensity", strength, 0.2)
+    tween.tween_property(effect.material, "shader_parameter/intensity", 0.0, duration)
+    func create_noise_texture(noise_type: FastNoiseLite.NoiseType) -> NoiseTexture2D:
+    var noise = FastNoiseLite.new()
+    noise.noise_type = noise_type
+    noise.fractal_octaves = 5
+    noise.frequency = 0.025
+    
+    # Optional: Add fractal layering
+    noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+    
+    var texture = NoiseTexture2D.new()
+    texture.noise = noise
+    texture.width = 512
+    texture.height = 512
+    
+    return texture
+    # Organic acid distortion (Recommended)
+var acid_noise = create_noise_texture(FastNoiseLite.TYPE_SIMPLEX_SMOOTH)
+
+# More structured / cellular acid look
+var cellular_noise = create_noise_texture(FastNoiseLite.TYPE_CELLULAR)
+
+# Classic smooth look
+var perlin_noise = create_noise_texture(FastNoiseLite.TYPE_PERLIN)
+uniform sampler2D noise_texture;
+
+void fragment() {
+    float n = texture(noise_texture, UV * 3.0 + TIME * 0.2).r;
+    
+    // Use noise for acid distortion
+    vec2 offset = (n - 0.5) * 0.035;
+    vec2 distorted_uv = UV + offset;
+    
+    COLOR = texture(TEXTURE, distorted_uv);
+}
+
+
     
     
     
