@@ -1102,5 +1102,1152 @@ $GODOT_PATH --headless --export-release "Web" ./build/index.html
 echo "Build complete! Open ./build/index.html in a browser."
 chmod +x export_game.sh
 ./export_game.sh
+# scripts/bosses/FalseMoonAttack.gd
+extends StateMachineBoss
+
+@export var tentacle_damage: int = 20
+@export var fire_damage: int = 15
+
+var is_attacking: bool = false
+
+@onready var attack_timer: Timer = $AttackTimer
+@onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
+
+func _ready() -> void:
+    super._ready()
+    attack_timer.timeout.connect(_perform_attack)
+
+func _physics_process(delta: float) -> void:
+    if current_state == State.DEAD: return
+    
+    if player and current_state == State.CHASE:
+        var dir = sign(player.global_position.x - global_position.x)
+        velocity.x = dir * 130
+    move_and_slide()
+
+func _perform_attack() -> void:
+    if current_state != State.CHASE or is_attacking: return
+    
+    is_attacking = true
+    change_state(State.ATTACK)
+    
+    var attack_choice = randi() % 3
+    match attack_choice:
+        0: _multi_tentacle_attack()
+        1: _fire_breath()
+        2: _tail_sting()
+    
+    await get_tree().create_timer(2.0).timeout
+    is_attacking = false
+    change_state(State.CHASE)
+
+func _multi_tentacle_attack() -> void:
+    print("False Moon: Multi-Tentacle Attack!")
+    # Spawn multiple projectiles or area damage
+
+func _fire_breath() -> void:
+    print("False Moon: Fire Breath!")
+    # Spawn fire particles/projectiles toward player
+
+func _tail_sting() -> void:
+    print("False Moon: Tail Sting!")
+    if player:
+        var distance = global_position.distance_to(player.global_position)
+        if distance < 180:
+            player.take_damage(25)
+            # scripts/bosses/RUGPULL_Overlord.gd
+extends StateMachineBoss
+
+@export var acid_damage: int = 18
+
+@onready var attack_timer: Timer = $AttackTimer
+
+func _ready() -> void:
+    super._ready()
+    attack_timer.timeout.connect(_perform_attack)
+
+func _physics_process(delta: float) -> void:
+    if current_state == State.DEAD: return
+    if player and current_state == State.CHASE:
+        var dir = sign(player.global_position.x - global_position.x)
+        velocity.x = dir * 110
+    move_and_slide()
+
+func _perform_attack() -> void:
+    if current_state != State.CHASE: return
+    change_state(State.SPECIAL)
+    
+    var choice = randi() % 3
+    match choice:
+        0: _shadow_teleport()
+        1: _spawn_acid_pools()
+        2: _chart_manipulation()
+    
+    await get_tree().create_timer(2.5).timeout
+    change_state(State.CHASE)
+
+func _shadow_teleport() -> void:
+    print("RUGPULL: Shadow Teleport!")
+    if player:
+        global_position = player.global_position + Vector2(randf_range(-200, 200), -80)
+
+func _spawn_acid_pools() -> void:
+    print("RUGPULL: Acid Pools!")
+    # Spawn acid damage zones on ground
+
+func _chart_manipulation() -> void:
+    print("RUGPULL: Chart Manipulation!")
+    # Shake camera + temporarily alter platform physics
+    # scripts/bosses/LegionOfLiquidation.gd
+extends StateMachineBoss
+
+@export var lightning_damage: int = 30
+
+var phase: int = 1
+
+@onready var attack_timer: Timer = $AttackTimer
+
+func _ready() -> void:
+    super._ready()
+    max_health = 600
+    health = max_health
+    attack_timer.timeout.connect(_perform_attack)
+
+func take_damage(amount: int) -> void:
+    super.take_damage(amount)
+    _check_phase()
+
+func _check_phase() -> void:
+    if health < max_health * 0.66 and phase == 1:
+        phase = 2
+        print("Legion Phase 2: Blood Wings Active")
+    elif health < max_health * 0.33 and phase == 2:
+        phase = 3
+        print("Legion Phase 3: Full Liquidation")
+
+func _perform_attack() -> void:
+    if current_state == State.DEAD: return
+    change_state(State.SPECIAL)
+    
+    match phase:
+        1: _lightning_strike()
+        2: _summon_minions()
+        3: _blood_wing_dive()
+    
+    await get_tree().create_timer(3.0).timeout
+    change_state(State.CHASE)
+
+func _lightning_strike() -> void:
+    print("Legion: Lightning Tempest!")
+
+func _summon_minions() -> void:
+    print("Legion: Summons Mad Chadlers!")
+
+func _blood_wing_dive() -> void:
+    print("Legion: Blood Wing Dive!")
+    Level2_GothicCathedral (Node2D)
+├── ParallaxBackground
+│   ├── Parallax2D_Far (Speed 0.2)      ← Dark cathedral pillars
+│   ├── Parallax2D_Mid (Speed 0.45)     ← Stained glass + candles
+│   └── Parallax2D_Fore (Speed 0.8)     ← Floating debris / chains
+├── TileMapLayer_Ground
+├── TileMapLayer_Walls
+├── TileMapLayer_Details (apply gothic shader here)
+├── Player
+├── Camera2D
+├── Enemies
+├── Bosses
+└── UI
+var lives: int = 3
+
+func take_damage(amount: int) -> void:
+    health -= amount
+    if health <= 0:
+        health = 100
+        lives -= 1
+        if lives <= 0:
+            _game_over()
+        else:
+            # Respawn logic or checkpoint
+            print("Lives remaining:", lives)
+
+func _game_over() -> void:
+    get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
+    # autoload/DifficultyManager.gd
+extends Node
+
+var current_level: int = 1
+
+func get_enemy_health_multiplier() -> float:
+    return 1.0 + (current_level - 1) * 0.25
+
+func get_enemy_speed_multiplier() -> float:
+    return 1.0 + (current_level - 1) * 0.15
+
+func get_boss_health_multiplier() -> float:
+    return 1.0 + (current_level - 1) * 0.4
+    extends Control
+
+@onready var continue_button: Button = $ContinueButton
+@onready var new_game_button: Button = $NewGameButton
+
+func _ready() -> void:
+    # Hide Continue if no save exists
+    if not SaveSystem.has_save():
+        continue_button.visible = false
+    
+    # Connect buttons
+    new_game_button.pressed.connect(_on_new_game_pressed)
+    continue_button.pressed.connect(_on_continue_pressed)
+    
+    # Optional: Play menu music
+    # $MenuMusic.play()
+
+func _on_new_game_pressed() -> void:
+    SaveSystem.new_game()
+    get_tree().change_scene_to_file("res://scenes/levels/Level1.tscn")
+
+func _on_continue_pressed() -> void:
+    SaveSystem.load_game()
+    var level_path = "res://scenes/levels/Level%d.tscn" % SaveSystem.current_level
+    get_tree().change_scene_to_file(level_path)
+    extends Node
+
+const SAVE_PATH = "user://wojak_nightmares_save.cfg"
+
+var current_level: int = 1
+var lives: int = 3
+var faith: int = 0
+var solana_orbs: int = 0
+var health: int = 100
+
+func new_game() -> void:
+    current_level = 1
+    lives = 3
+    faith = 0
+    solana_orbs = 0
+    health = 100
+    save_game()
+
+func save_game() -> void:
+    var config = ConfigFile.new()
+    
+    config.set_value("progress", "current_level", current_level)
+    config.set_value("player", "lives", lives)
+    config.set_value("player", "faith", faith)
+    config.set_value("player", "solana_orbs", solana_orbs)
+    config.set_value("player", "health", health)
+    
+    config.save(SAVE_PATH)
+    print("Game saved successfully.")
+
+func load_game() -> bool:
+    var config = ConfigFile.new()
+    var err = config.load(SAVE_PATH)
+    
+    if err != OK:
+        print("No save file found.")
+        return false
+    
+    current_level = config.get_value("progress", "current_level", 1)
+    lives = config.get_value("player", "lives", 3)
+    faith = config.get_value("player", "faith", 0)
+    solana_orbs = config.get_value("player", "solana_orbs", 0)
+    health = config.get_value("player", "health", 100)
+    
+    print("Game loaded successfully.")
+    return true
+
+func has_save() -> bool:
+    return FileAccess.file_exists(SAVE_PATH)
+
+func delete_save() -> void:
+    if has_save():
+        DirAccess.remove_absolute(SAVE_PATH)
+        print("Save file deleted.")
+       # When collecting items
+func collect(item_type: String, value: int = 1) -> void:
+    match item_type:
+        "holy_candle":
+            faith += value
+        "solana_orb":
+            solana_orbs += value
+        ...
+    SaveSystem.save_game()   # Auto-save on pickup
+
+# When taking damage or losing a life
+func take_damage(amount: int) -> void:
+    ...
+    SaveSystem.lives = lives
+    SaveSystem.health = health
+    SaveSystem.save_game()
+    SaveSystem.current_level = 2
+SaveSystem.save_game()
+get_tree().change_scene_to_file("res://scenes/levels/Level2_GothicCathedral.tscn")
+extends Control
+
+@onready var orb_label: Label = $OrbLabel
+@onready var acid_button: Button = $AcidRainButton
+@onready var fire_button: Button = $FireStormButton
+@onready var lightning_button: Button = $LightningTempestButton
+
+func _ready() -> void:
+    add_to_group("ui")
+    update_ui()
+
+func update_ui() -> void:
+    var orbs = SaveSystem.solana_orbs
+    orb_label.text = "Solana Orbs: %d" % orbs
+    
+    acid_button.disabled = orbs < 3
+    fire_button.disabled = orbs < 3
+    lightning_button.disabled = orbs < 3
+
+func _on_acid_rain_pressed() -> void:
+    get_tree().get_first_node_in_group("player").cast_spell("acid_rain")
+    update_ui()
+
+func _on_fire_storm_pressed() -> void:
+    get_tree().get_first_node_in_group("player").cast_spell("fire_storm")
+    update_ui()
+
+func _on_lightning_tempest_pressed() -> void:
+    get_tree().get_first_node_in_group("player").cast_spell("lightning_tempest")
+    update_ui()
+    extends Camera2D
+
+@export var shake_strength: float = 30.0
+@export var shake_fade: float = 5.0
+
+var shake_amount: float = 0.0
+
+func _ready() -> void:
+    # Set camera limits (adjust per level)
+    limit_left = 0
+    limit_top = -200
+    limit_right = 3000
+    limit_bottom = 800
+
+func _process(delta: float) -> void:
+    if shake_amount > 0:
+        shake_amount = lerp(shake_amount, 0.0, shake_fade * delta)
+        offset = Vector2(randf_range(-shake_amount, shake_amount), 
+                         randf_range(-shake_amount, shake_amount))
+
+func apply_shake(strength: float = 25.0) -> void:
+    shake_amount = strength
+    get_tree().get_first_node_in_group("camera").apply_shake(40)
+    extends Node
+
+const SAVE_PATH := "user://wojak_save_slot_%d.dat"
+const ENCRYPTION_KEY := "ChurchOfPump2026"  # Change this
+
+var current_slot: int = 1
+var current_level: int = 1
+var lives: int = 3
+var faith: int = 0
+var solana_orbs: int = 0
+var health: int = 100
+
+func save_game(slot: int = -1) -> void:
+    if slot == -1: slot = current_slot
+    
+    var path = SAVE_PATH % slot
+    var file = FileAccess.open_encrypted_with_pass(path, FileAccess.WRITE, ENCRYPTION_KEY)
+    
+    if file == null:
+        push_error("Failed to save game")
+        return
+    
+    var data = {
+        "current_level": current_level,
+        "lives": lives,
+        "faith": faith,
+        "solana_orbs": solana_orbs,
+        "health": health
+    }
+    
+    file.store_string(JSON.stringify(data))
+    file.close()
+    print("Game saved to slot %d" % slot)
+
+func load_game(slot: int = -1) -> bool:
+    if slot == -1: slot = current_slot
+    
+    var path = SAVE_PATH % slot
+    if not FileAccess.file_exists(path):
+        return false
+    
+    var file = FileAccess.open_encrypted_with_pass(path, FileAccess.READ, ENCRYPTION_KEY)
+    if file == null:
+        return false
+    
+    var json_string = file.get_as_text()
+    file.close()
+    
+    var data = JSON.parse_string(json_string)
+    if data == null:
+        return false
+    
+    current_level = data.get("current_level", 1)
+    lives = data.get("lives", 3)
+    faith = data.get("faith", 0)
+    solana_orbs = data.get("solana_orbs", 0)
+    health = data.get("health", 100)
+    
+    print("Game loaded from slot %d" % slot)
+    return true
+
+func has_save(slot: int) -> bool:
+    return FileAccess.file_exists(SAVE_PATH % slot)
+
+func auto_save() -> void:
+    save_game(current_slot)  # Auto-save to current slot
+
+func new_game(slot: int = 1) -> void:
+    current_slot = slot
+    current_level = 1
+    lives = 3
+    faith = 0
+    solana_orbs = 0
+    health = 100
+    save_game(slot)
+    SaveSystem.save_game(1)   # Save to Slot 1
+SaveSystem.load_game(2)   # Load from Slot 2
+extends Control
+
+func _on_delete_save_pressed(slot: int) -> void:
+    var path = "user://wojak_save_slot_%d.dat" % slot
+    if FileAccess.file_exists(path):
+        DirAccess.remove_absolute(path)
+        print("Save slot %d deleted" % slot)
+        extends Node
+
+const SAVE_PATH := "user://wojak_save_slot_%d.dat"
+const ENCRYPTION_KEY := "ChurchOfPump2026Secure"
+
+var current_slot: int = 1
+var current_level: int = 1
+var lives: int = 3
+var faith: int = 0
+var solana_orbs: int = 0
+var health: int = 100
+
+func _ready() -> void:
+    # Load last used slot on startup (optional)
+    pass
+
+func save_game(slot: int = -1) -> void:
+    if slot == -1: slot = current_slot
+    var path = SAVE_PATH % slot
+    
+    var file = FileAccess.open_encrypted_with_pass(path, FileAccess.WRITE, ENCRYPTION_KEY)
+    if file == null:
+        push_error("Save failed on slot %d" % slot)
+        return
+    
+    var data = {
+        "current_level": current_level,
+        "lives": lives,
+        "faith": faith,
+        "solana_orbs": solana_orbs,
+        "health": health,
+        "timestamp": Time.get_datetime_string_from_system()
+    }
+    
+    file.store_string(JSON.stringify(data))
+    file.close()
+    print("Game saved to slot %d" % slot)
+
+func load_game(slot: int = -1) -> bool:
+    if slot == -1: slot = current_slot
+    var path = SAVE_PATH % slot
+    
+    if not FileAccess.file_exists(path):
+        return false
+    
+    var file = FileAccess.open_encrypted_with_pass(path, FileAccess.READ, ENCRYPTION_KEY)
+    if file == null: return false
+    
+    var json_string = file.get_as_text()
+    file.close()
+    
+    var data = JSON.parse_string(json_string)
+    if data == null: return false
+    
+    current_level = data.get("current_level", 1)
+    lives = data.get("lives", 3)
+    faith = data.get("faith", 0)
+    solana_orbs = data.get("solana_orbs", 0)
+    health = data.get("health", 100)
+    
+    current_slot = slot
+    print("Loaded slot %d" % slot)
+    return true
+
+func has_save(slot: int) -> bool:
+    return FileAccess.file_exists(SAVE_PATH % slot)
+
+func auto_save() -> void:
+    save_game(current_slot)
+
+func new_game(slot: int = 1) -> void:
+    current_slot = slot
+    current_level = 1
+    lives = 3
+    faith = 0
+    solana_orbs = 0
+    health = 100
+    save_game(slot)
+    extends Area2D
+
+@export var checkpoint_id: int = 1
+
+func _ready() -> void:
+    body_entered.connect(_on_body_entered)
+
+func _on_body_entered(body: Node2D) -> void:
+    if body is Player:
+        SaveSystem.current_level = get_tree().current_scene.scene_file_path.get_file().to_int()
+        SaveSystem.auto_save()
+        print("Checkpoint reached! Game auto-saved.")
+        # Optional: Play particle effect or sound
+        func take_damage(amount: int) -> void:
+    health -= amount
+    if health <= 0:
+        health = 100
+        lives -= 1
+        SaveSystem.lives = lives
+        SaveSystem.health = health
+        SaveSystem.auto_save()
+        
+        if lives <= 0:
+            _game_over()
+        else:
+            _respawn()
+
+func _respawn() -> void:
+    # Simple respawn at last checkpoint or start of level
+    global_position = Vector2(150, 500)  # Adjust per level
+    print("Respawned. Lives left:", lives)
+
+func _game_over() -> void:
+    get_tree().change_scene_to_file("res://scenes/ui/GameOver.tscn")
+    Level1
+├── ParallaxBackground (optional)
+├── TileMapLayer_Ground
+├── TileMapLayer_Details
+├── Player (with Camera2D child)
+├── Enemies
+├── Bosses
+│   └── REKT
+├── Collectibles
+├── Checkpoints
+└── UI
+    ├── SpellUI
+    └── FaithMeter
+    func _cast_fire_storm() -> void:
+    var particles = preload("res://scenes/particles/FireStormParticles.tscn").instantiate()
+    particles.global_position = player.global_position
+    get_parent().add_child(particles)
+    # Add screen shake
+    get_tree().get_first_node_in_group("camera").apply_shake(35)
+    # In MainMenu.gd
+func _on_slot_pressed(slot: int) -> void:
+    if SaveSystem.has_save(slot):
+        SaveSystem.load_game(slot)
+        var level_scene = "res://scenes/levels/Level%d.tscn" % SaveSystem.current_level
+        get_tree().change_scene_to_file(level_scene)
+    else:
+        SaveSystem.new_game(slot)
+        get_tree().change_scene_to_file("res://scenes/levels/Level1.tscn")
+        func _on_delete_slot_pressed(slot: int) -> void:
+    var path = "user://wojak_save_slot_%d.dat" % slot
+    if FileAccess.file_exists(path):
+        DirAccess.remove_absolute(path)
+        #!/bin/bash
+godot --headless --export-release "Web" ./build/index.html
+echo "Build complete. Upload the 'build' folder to itch.io"
+extends Camera2D
+class_name GameCamera
+
+@export var max_shake_strength: float = 40.0
+@export var shake_fade: float = 8.0
+
+var shake_strength: float = 0.0
+var noise: FastNoiseLite
+
+func _ready() -> void:
+    noise = FastNoiseLite.new()
+    noise.seed = randi()
+    noise.frequency = 2.0
+
+func _process(delta: float) -> void:
+    if shake_strength > 0:
+        shake_strength = lerp(shake_strength, 0.0, shake_fade * delta)
+        
+        var offset_x = noise.get_noise_1d(Time.get_ticks_msec() * 0.01) * shake_strength
+        var offset_y = noise.get_noise_1d(Time.get_ticks_msec() * 0.01 + 100) * shake_strength
+        offset = Vector2(offset_x, offset_y)
+
+func apply_shake(strength: float = 25.0) -> void:
+    shake_strength = min(strength, max_shake_strength)
+    get_tree().get_first_node_in_group("camera").apply_shake(35)
+    extends Node
+
+func set_master_volume(value: float) -> void:
+    AudioServer.set_bus_volume_db(0, linear_to_db(value))
+
+func set_music_volume(value: float) -> void:
+    AudioServer.set_bus_volume_db(1, linear_to_db(value))
+
+func set_sfx_volume(value: float) -> void:
+    AudioServer.set_bus_volume_db(2, linear_to_db(value))
+
+func play_sfx(stream: AudioStream, volume_db: float = 0.0) -> void:
+    var player = AudioStreamPlayer.new()
+    player.stream = stream
+    player.volume_db = volume_db
+    player.bus = "SFX"
+    add_child(player)
+    player.play()
+    player.finished.connect(player.queue_free)
+    extends Area2D
+
+@export var checkpoint_id: String = "checkpoint_1"
+static var last_checkpoint_position: Vector2 = Vector2.ZERO
+
+func _ready() -> void:
+    body_entered.connect(_on_body_entered)
+
+func _on_body_entered(body: Node2D) -> void:
+    if body is Player:
+        last_checkpoint_position = global_position
+        SaveSystem.auto_save()
+        print("Checkpoint saved:", checkpoint_id)
+        func _respawn() -> void:
+    if Checkpoint.last_checkpoint_position != Vector2.ZERO:
+        global_position = Checkpoint.last_checkpoint_position
+    else:
+        global_position = Vector2(150, 500)  # Default spawn
+        Level1 (Node2D)
+├── ParallaxBackground (optional)
+├── TileMapLayer_Ground
+├── TileMapLayer_Platforms
+├── TileMapLayer_Details
+├── Player
+│   └── Camera2D (with GameCamera script + AudioListener2D)
+├── Enemies
+│   ├── MadChadler (x6–8)
+│   └── MadChadler_Gunner (x2–3)
+├── Bosses
+│   └── REKT
+├── Collectibles
+│   ├── HolyCandle (x5)
+│   └── SolanaOrb (x4)
+├── Checkpoints
+│   ├── Checkpoint (Start)
+│   └── Checkpoint (Mid-level)
+├── Particles (for atmosphere)
+└── UI (CanvasLayer)
+    ├── SpellUI
+    ├── FaithMeter
+    └── HUD
+    extends Control
+
+@onready var master_slider: HSlider = $MasterSlider
+@onready var music_slider: HSlider = $MusicSlider
+@onready var sfx_slider: HSlider = $SFXSlider
+
+func _ready() -> void:
+    master_slider.value = db_to_linear(AudioServer.get_bus_volume_db(0))
+    music_slider.value = db_to_linear(AudioServer.get_bus_volume_db(1))
+    sfx_slider.value = db_to_linear(AudioServer.get_bus_volume_db(2))
+
+func _on_master_slider_value_changed(value: float) -> void:
+    AudioManager.set_master_volume(value)
+
+func _on_music_slider_value_changed(value: float) -> void:
+    AudioManager.set_music_volume(value)
+
+func _on_sfx_slider_value_changed(value: float) -> void:
+    AudioManager.set_sfx_volume(value)
+
+func _on_delete_slot_pressed(slot: int) -> void:
+    var path = "user://wojak_save_slot_%d.dat" % slot
+    if FileAccess.file_exists(path):
+        DirAccess.remove_absolute(path)
+        print("Deleted save slot", slot)
+        #!/bin/bash
+echo "Building Wojak's Nightmares for itch.io..."
+godot --headless --export-release "itch.io Web" ./build/index.html
+echo "Build complete!"
+echo "Upload the entire 'build' folder to itch.io"
+extends Control
+
+func _ready() -> void:
+    # Play victory music / particles
+    pass
+
+func _on_main_menu_pressed() -> void:
+    get_tree().change_scene_to_file("res://scenes/ui/MainMenu.tscn")
+
+func _on_quit_pressed() -> void:
+    get_tree().quit()
+    extends "res://scripts/MadChadler.gd"
+
+@export var shoot_range: float = 280.0
+@export var fire_rate: float = 1.5
+
+var can_shoot: bool = true
+
+func _physics_process(delta: float) -> void:
+    if player:
+        var distance = global_position.distance_to(player.global_position)
+        if distance > shoot_range:
+            var dir = sign(player.global_position.x - global_position.x)
+            velocity.x = dir * speed
+        else:
+            velocity.x = move_toward(velocity.x, 0, 200 * delta)
+            if can_shoot:
+                _shoot()
+    move_and_slide()
+
+func _shoot() -> void:
+    can_shoot = false
+    print("MadChadler_Gunner shoots!")
+    # Spawn bullet projectile here
+    await get_tree().create_timer(fire_rate).timeout
+    can_shoot = true
+    extends "res://scripts/MadChadler.gd"
+
+func _ready() -> void:
+    super._ready()
+    speed = 80
+    health = 90
+
+func _physics_process(delta: float) -> void:
+    if player:
+        var dir = sign(player.global_position.x - global_position.x)
+        velocity.x = dir * speed
+    move_and_slide()
+
+func take_damage(amount: int) -> void:
+    super.take_damage(amount)
+    if health < 40:
+        speed = 140  # Enrage
+        extends "res://scripts/MadChadler.gd"
+
+@export var grenade_cooldown: float = 4.0
+var can_grenade: bool = true
+
+func _physics_process(delta: float) -> void:
+    if player:
+        var dir = sign(player.global_position.x - global_position.x)
+        velocity.x = dir * (speed * 1.3)
+    move_and_slide()
+
+func take_damage(amount: int) -> void:
+    super.take_damage(amount)
+    if can_grenade and health < 50:
+        _throw_grenade()
+
+func _throw_grenade() -> void:
+    can_grenade = false
+    print("Elite throws grenade!")
+    # Spawn grenade projectile
+    await get_tree().create_timer(grenade_cooldown).timeout
+    can_grenade = true
+    extends StateMachineBoss
+
+enum AttackType { CHARGE, ROAR, STOMP }
+
+@onready var attack_timer: Timer = $AttackTimer
+
+func _ready() -> void:
+    super._ready()
+    attack_timer.timeout.connect(_choose_attack)
+
+func _physics_process(delta: float) -> void:
+    if current_state == State.DEAD: return
+
+    match current_state:
+        State.CHASE:
+            _chase_player()
+        State.ATTACK:
+            pass  # Handled in attack functions
+
+func _chase_player() -> void:
+    if player:
+        var dir = sign(player.global_position.x - global_position.x)
+        velocity.x = dir * normal_speed
+    move_and_slide()
+
+func _choose_attack() -> void:
+    if current_state != State.CHASE: return
+    change_state(State.ATTACK)
+    
+    var attack = AttackType.values().pick_random()
+    match attack:
+        AttackType.CHARGE: _do_charge()
+        AttackType.ROAR: _do_roar()
+        AttackType.STOMP: _do_stomp()
+
+func _do_charge() -> void:
+    print("REKT charges!")
+    # Fast movement toward player + screen shake
+    await get_tree().create_timer(1.5).timeout
+    change_state(State.CHASE)
+
+func _do_roar() -> void:
+    print("REKT roars!")
+    get_tree().get_first_node_in_group("camera").apply_shake(30)
+    await get_tree().create_timer(1.0).timeout
+    change_state(State.CHASE)
+
+func _do_stomp() -> void:
+    print("REKT stomps!")
+    # Spawn shockwave or damage area
+    await get_tree().create_timer(1.2).timeout
+    change_state(State.CHASE)
+    extends Control
+
+@onready var stats_label: Label = $StatsLabel
+@onready var particles: GPUParticles2D = $VictoryParticles
+
+func _ready() -> void:
+    particles.emitting = true
+    var orbs = SaveSystem.solana_orbs
+    var faith = SaveSystem.faith
+    stats_label.text = "Solana Orbs Collected: %d\nFaith Gained: %d" % [orbs, faith]
+
+func _on_main_menu_pressed() -> void:
+    get_tree().change_scene_to_file("res://scenes/ui/MainMenu.tscn")
+    extends Control
+
+@onready var continue_button: Button = $ContinueButton
+@onready var slot_buttons = [$Slot1Button, $Slot2Button, $Slot3Button]
+
+func _ready() -> void:
+    continue_button.visible = SaveSystem.has_save(SaveSystem.current_slot)
+    
+    for i in range(3):
+        var btn = slot_buttons[i]
+        btn.text = "Slot %d" % (i + 1)
+        if SaveSystem.has_save(i + 1):
+            btn.text += " (Saved)"
+        btn.pressed.connect(_on_slot_selected.bind(i + 1))
+
+func _on_slot_selected(slot: int) -> void:
+    if SaveSystem.has_save(slot):
+        SaveSystem.load_game(slot)
+    else:
+        SaveSystem.new_game(slot)
+    
+    var level_path = "res://scenes/levels/Level%d.tscn" % SaveSystem.current_level
+    get_tree().change_scene_to_file(level_path)
+    ParallaxBackground
+├── Parallax2D (Far)          ← Speed Scale: 0.2   (Distant buildings / pillars)
+├── Parallax2D (Mid)          ← Speed Scale: 0.5   (Neon signs / stained glass)
+├── Parallax2D (Close)        ← Speed Scale: 0.8   (Floating debris / chains)
+└── Parallax2D (Foreground)   ← Speed Scale: 1.0   (Optional rain or particles)
+extends Parallax2D
+
+@export var scroll_speed: float = 20.0
+
+func _process(delta: float) -> void:
+    scroll_offset.x -= scroll_speed * delta
+    extends Area2D
+class_name Projectile
+
+@export var speed: float = 600.0
+@export var damage: int = 15
+@export var lifetime: float = 3.0
+var direction: int = 1
+
+func _ready() -> void:
+    body_entered.connect(_on_body_entered)
+    await get_tree().create_timer(lifetime).timeout
+    queue_free()
+
+func _physics_process(delta: float) -> void:
+    position.x += speed * direction * delta
+
+func _on_body_entered(body: Node2D) -> void:
+    if body is Player:
+        body.take_damage(damage)
+        queue_free()
+    elif body.is_in_group("enemy") or body.is_in_group("boss"):
+        if body.has_method("take_damage"):
+            body.take_damage(damage)
+        queue_free()
+        func _shoot_bullet() -> void:
+    var bullet = preload("res://scenes/projectiles/Bullet.tscn").instantiate()
+    bullet.global_position = global_position
+    bullet.direction = sign(player.global_position.x - global_position.x)
+    get_parent().add_child(bullet)
+    extends StateMachineBoss
+
+@export var lightning_damage: int = 30
+var phase: int = 1
+var minion_count: int = 0
+
+@onready var attack_timer: Timer = $AttackTimer
+@onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
+
+func _ready() -> void:
+    super._ready()
+    max_health = 650
+    health = max_health
+    attack_timer.timeout.connect(_perform_attack)
+
+func take_damage(amount: int) -> void:
+    super.take_damage(amount)
+    _check_phase_transition()
+
+func _check_phase_transition() -> void:
+    if health <= max_health * 0.66 and phase == 1:
+        phase = 2
+        print("Legion Phase 2: Blood Wings Unleashed")
+        get_tree().get_first_node_in_group("camera").apply_shake(45)
+    elif health <= max_health * 0.33 and phase == 2:
+        phase = 3
+        print("Legion Phase 3: Full Liquidation")
+
+func _perform_attack() -> void:
+    if current_state == State.DEAD: return
+    change_state(State.SPECIAL)
+
+    match phase:
+        1: _lightning_strike()
+        2: _summon_minions()
+        3: _blood_wing_dive()
+
+    await get_tree().create_timer(3.5).timeout
+    change_state(State.CHASE)
+
+func _lightning_strike() -> void:
+    print("Legion: Lightning Tempest!")
+    get_tree().get_first_node_in_group("camera").apply_shake(50)
+    # Spawn lightning projectiles in arc
+
+func _summon_minions() -> void:
+    print("Legion: Summons Mad Chadlers!")
+    for i in range(2):
+        var minion = preload("res://scenes/enemies/MadChadler.tscn").instantiate()
+        minion.global_position = global_position + Vector2(randf_range(-150, 150), -50)
+        get_parent().add_child(minion)
+
+func _blood_wing_dive() -> void:
+    print("Legion: Blood Wing Dive!")
+    if player:
+        var direction = sign(player.global_position.x - global_position.x)
+        velocity.x = direction * 450
+    get_tree().get_first_node_in_group("camera").apply_shake(60)
+    extends Node
+
+var master_volume: float = 1.0
+var music_volume: float = 0.8
+var sfx_volume: float = 1.0
+
+func _ready() -> void:
+    # Set default bus volumes
+    set_master_volume(master_volume)
+    set_music_volume(music_volume)
+    set_sfx_volume(sfx_volume)
+
+func set_master_volume(value: float) -> void:
+    master_volume = value
+    AudioServer.set_bus_volume_db(0, linear_to_db(value))
+
+func set_music_volume(value: float) -> void:
+    music_volume = value
+    AudioServer.set_bus_volume_db(1, linear_to_db(value))
+
+func set_sfx_volume(value: float) -> void:
+    sfx_volume = value
+    AudioServer.set_bus_volume_db(2, linear_to_db(value))
+
+func play_sfx(sound: AudioStream, volume_db: float = 0.0) -> void:
+    var player = AudioStreamPlayer.new()
+    player.stream = sound
+    player.volume_db = volume_db
+    player.bus = "SFX"
+    add_child(player)
+    player.play()
+    player.finished.connect(player.queue_free)
+    Level2_GothicCathedral
+├── ParallaxBackground
+│   ├── Parallax2D_Far (Speed 0.2)
+│   ├── Parallax2D_Mid (Speed 0.5)
+│   └── Parallax2D_Fore (Speed 0.85)
+├── TileMapLayer_Ground
+├── TileMapLayer_Walls
+├── TileMapLayer_Details (apply gothic lighting shader)
+├── Player
+├── Camera2D (GameCamera + AudioListener2D)
+├── Enemies
+├── Bosses
+│   └── LegionOfLiquidation
+├── Checkpoints
+├── Collectibles
+└── UI
+@onready var victory_text: Label = $VictoryText
+
+func _ready() -> void:
+    victory_text.text = "The Church of the Pump stands eternal.\nYou have reclaimed the flame."
+    godot --headless --export-release "Web" ./build/index.html
+    func play_gunshot() -> void:
+    var sound = preload("res://assets/audio/sfx/gunshot.wav")
+    play_sfx(sound, -2)
+
+func play_explosion() -> void:
+    var sound = preload("res://assets/audio/sfx/explosion.wav")
+    play_sfx(sound, 3)
+
+func play_boss_roar() -> void:
+    var sound = preload("res://assets/audio/sfx/boss_roar.wav")
+    play_sfx(sound, 0)
+
+func play_acid_sizzle() -> void:
+    var sound = preload("res://assets/audio/sfx/acid_sizzle.wav")
+    play_sfx(sound, -5)
+    extends Area2D
+
+@export var damage_per_second: int = 12
+@export var duration: float = 6.0
+
+var player_inside: bool = false
+
+func _ready() -> void:
+    body_entered.connect(_on_body_entered)
+    body_exited.connect(_on_body_exited)
+    await get_tree().create_timer(duration).timeout
+    queue_free()
+
+func _on_body_entered(body: Node2D) -> void:
+    if body is Player:
+        player_inside = true
+        AudioManager.play_acid_sizzle()
+        _start_damage_over_time(body)
+
+func _on_body_exited(body: Node2D) -> void:
+    if body is Player:
+        player_inside = false
+
+func _start_damage_over_time(player: Player) -> void:
+    while player_inside and is_instance_valid(player):
+        player.take_damage(damage_per_second)
+        await get_tree().create_timer(1.0).timeout
+       ParallaxBackground
+├── Parallax2D_Far      (Speed Scale = 0.2)   ← Distant buildings / cathedral silhouette
+├── Parallax2D_Mid      (Speed Scale = 0.5)   ← Neon signs / stained glass windows
+├── Parallax2D_Close    (Speed Scale = 0.85)  ← Floating chains / debris
+└── Parallax2D_Fore     (Speed Scale = 1.0)   ← Optional light rain or particles
+extends Parallax2D
+
+@export var scroll_speed: float = 30.0
+
+func _process(delta: float) -> void:
+    scroll_offset.x -= scroll_speed * delta
+    @onready var victory_text: Label = $VictoryText
+
+func _ready() -> void:
+    victory_text.text = "The Church of the Pump stands eternal.\nYou have reclaimed the flame."
+   func _ready() -> void:
+    var splash = $SplashParticles
+    splash.emitting = true
+    await get_tree().create_timer(0.6).timeout
+    splash.emitting = false
+    extends Control
+
+@onready var health_bar: ProgressBar = $HealthBar
+@onready var name_label: Label = $BossName
+
+var boss: Node = null
+
+func _ready() -> void:
+    visible = false
+    add_to_group("ui")
+
+func show_for_boss(target_boss: Node, boss_name: String) -> void:
+    boss = target_boss
+    name_label.text = boss_name
+    visible = true
+    health_bar.max_value = boss.max_health
+    health_bar.value = boss.health
+
+func _process(delta: float) -> void:
+    if boss and is_instance_valid(boss):
+        health_bar.value = boss.health
+        if boss.health <= 0:
+            queue_free()
+    else:
+        queue_free()
+        func _ready() -> void:
+    super._ready()
+    var health_ui = preload("res://scenes/ui/BossHealthBar.tscn").instantiate()
+    get_tree().get_first_node_in_group("ui").add_child(health_ui)
+    health_ui.show_for_boss(self, "REKT")
+    var splash = preload("res://scenes/particles/AcidSplash.tscn").instantiate()
+splash.global_position = global_position
+get_parent().add_child(splash)
+splash.emitting = true
+func die() -> void:
+    change_state(State.DEAD)
+    emit_signal("boss_died")
+    
+    # Play death animation if available
+    if has_node("AnimatedSprite2D"):
+        var sprite = $AnimatedSprite2D
+        if sprite.sprite_frames.has_animation("death"):
+            sprite.play("death")
+            await sprite.animation_finished
+    
+    # Optional: Death particles
+    spawn_death_particles()
+    
+    queue_free()
+
+func spawn_death_particles() -> void:
+    var death_particles = preload("res://scenes/particles/BossDeathParticles.tscn").instantiate()
+    death_particles.global_position = global_position
+    get_parent().add_child(death_particles)
+    func apply_acid_shake(strength: float = 20.0) -> void:
+    shake_strength = strength * 1.2  # Slightly stronger + longer feel
+    # Optional: Add slight green flash overlay if you have a CanvasLayer
+    # In AcidPool or when acid hits player
+get_tree().get_first_node_in_group("camera").apply_acid_shake(25)
+AudioManager.play_acid_sizzle()
+func die() -> void:
+    change_state(State.DEAD)
+    emit_signal("boss_died")
+    
+    # Acid death sequence
+    velocity = Vector2.ZERO
+    
+    # Play acid death particles
+    var acid_death = preload("res://scenes/particles/AcidDeathExplosion.tscn").instantiate()
+    acid_death.global_position = global_position
+    get_parent().add_child(acid_death)
+    
+    # Strong acid screen shake
+    get_tree().get_first_node_in_group("camera").apply_acid_shake(60)
+    
+    # Optional: Play special acid death sound
+    AudioManager.play_explosion()
+    
+    # Fade out sprite if it exists
+    if has_node("AnimatedSprite2D"):
+        var tween = create_tween()
+        tween.tween_property($AnimatedSprite2D, "modulate:a", 0.0, 1.5)
+    
+    await get_tree().create_timer(2.0).timeout
+    queue_free()
+    
+    
+    
+    
+
 
     
