@@ -2961,6 +2961,734 @@ void fragment() {
     
     COLOR = texture(TEXTURE, distorted_uv);
 }
+extends Node2D
+
+@onready var camera: Camera2D = $Camera2D
+@onready var fade_rect: ColorRect = $ColorRect
+@onready var victory_label: Label = $VictoryLabel
+@onready var stats_label: Label = $StatsLabel
+@onready var particles: GPUParticles2D = $VictoryParticles
+@onready var anim_player: AnimationPlayer = $AnimationPlayer
+@onready var return_button: Button = $ReturnButton
+
+func _ready() -> void:
+    fade_rect.color.a = 1.0
+    victory_label.text = "The Church of the Pump stands eternal.\nYou have reclaimed the flame."
+    victory_label.modulate.a = 0.0
+    stats_label.modulate.a = 0.0
+    return_button.visible = false
+    
+    # Show stats from SaveSystem
+    var orbs = SaveSystem.solana_orbs
+    var faith = SaveSystem.faith
+    stats_label.text = "Solana Orbs Collected: %d\nFaith Restored: %d" % [orbs, faith]
+    
+    particles.emitting = false
+    start_cinematic()
+
+func start_cinematic() -> void:
+    # Slow camera pan + fade in
+    var cam_tween = create_tween()
+    cam_tween.tween_property(camera, "position:x", camera.position.x + 400, 7.0)
+    
+    # Fade out black overlay
+    var fade_tween = create_tween()
+    fade_tween.tween_property(fade_rect, "color:a", 0.0, 2.5)
+    
+    # Fade in victory text + particles
+    await get_tree().create_timer(2.0).timeout
+    particles.emitting = true
+    
+    var text_tween = create_tween()
+    text_tween.tween_property(victory_label, "modulate:a", 1.0, 2.0)
+    
+    await get_tree().create_timer(1.5).timeout
+    var stats_tween = create_tween()
+    stats_tween.tween_property(stats_label, "modulate:a", 1.0, 1.5)
+    
+    await get_tree().create_timer(3.0).timeout
+    return_button.visible = true
+    return_button.pressed.connect(_on_return_pressed)
+
+func _on_return_pressed() -> void:
+    var fade_tween = create_tween()
+    fade_tween.tween_property(fade_rect, "color:a", 1.0, 1.5)
+    await fade_tween.finished
+    get_tree().change_scene_to_file("res://scenes/ui/MainMenu.tscn")
+extends Control
+
+@onready var continue_button: Button = $ContinueButton
+@onready var slot_buttons: Array[Button] = [$Slot1Button, $Slot2Button, $Slot3Button]
+
+func _ready() -> void:
+    _update_slot_buttons()
+    continue_button.visible = SaveSystem.has_save(SaveSystem.current_slot)
+    continue_button.pressed.connect(_on_continue_pressed)
+
+func _update_slot_buttons() -> void:
+    for i in range(3):
+        var btn = slot_buttons[i]
+        var slot_num = i + 1
+        if SaveSystem.has_save(slot_num):
+            btn.text = "Slot %d (Saved)" % slot_num
+        else:
+            btn.text = "Slot %d (New)" % slot_num
+        btn.pressed.connect(_on_slot_selected.bind(slot_num))
+
+func _on_slot_selected(slot: int) -> void:
+    if SaveSystem.has_save(slot):
+        SaveSystem.load_game(slot)
+    else:
+        SaveSystem.new_game(slot)
+    get_tree().change_scene_to_file("res://scenes/levels/Level%d.tscn" % SaveSystem.current_level)
+
+func _on_continue_pressed() -> void:
+    SaveSystem.load_game(SaveSystem.current_slot)
+    get_tree().change_scene_to_file("res://scenes/levels/Level%d.tscn" % SaveSystem.current_level)
+#!/bin/bash
+godot --headless --export-release "itch.io Web" ./build/index.html
+echo "Build ready! Upload the entire 'build' folder to itch.io"
+Wojaks_Nightmares/
+├── project.godot
+├── export_presets.cfg
+├── .godot/                          # Auto-generated (ignore in git)
+├── assets/
+│   ├── sprites/
+│   │   ├── player/
+│   │   ├── enemies/
+│   │   ├── bosses/
+│   │   └── ui/
+│   ├── textures/
+│   │   ├── posters/                 # Church of the Pump poster
+│   │   └── backgrounds/
+│   ├── audio/
+│   │   ├── music/
+│   │   └── sfx/
+│   └── particles/
+├── scenes/
+│   ├── player/
+│   │   └── Player.tscn
+│   ├── enemies/
+│   │   ├── MadChadler.tscn
+│   │   ├── MadChadler_Gunner.tscn
+│   │   ├── MadChadler_Heavy.tscn
+│   │   └── MadChadler_Elite.tscn
+│   ├── bosses/
+│   │   ├── REKT.tscn
+│   │   ├── FalseMoonAttack.tscn
+│   │   ├── RUGPULL_Overlord.tscn
+│   │   └── LegionOfLiquidation.tscn
+│   ├── levels/
+│   │   ├── Level1.tscn
+│   │   ├── Level2_GothicCathedral.tscn
+│   │   ├── Level3_AcidicVoid.tscn
+│   │   └── Level4_FinalCathedral.tscn
+│   ├── ui/
+│   │   ├── MainMenu.tscn
+│   │   ├── OptionsMenu.tscn
+│   │   ├── SpellUI.tscn
+│   │   ├── FaithMeter.tscn
+│   │   ├── BossHealthBar.tscn
+│   │   ├── GameOver.tscn
+│   │   └── VictoryScreen.tscn
+│   ├── cinematics/
+│   │   └── EndingCinematic.tscn
+│   └── checkpoints/
+│       └── Checkpoint.tscn
+├── scripts/
+│   ├── player/
+│   │   └── Player.gd
+│   ├── enemies/
+│   ├── bosses/
+│   ├── ui/
+│   ├── systems/
+│   │   ├── SaveSystem.gd          # Autoload
+│   │   ├── AudioManager.gd        # Autoload
+│   │   └── DifficultyManager.gd   # Autoload
+│   └── cinematics/
+│       └── EndingCinematic.gd
+├── shaders/
+│   ├── acid_particle.gdshader
+│   ├── chromatic_aberration.gdshader
+│   ├── acid_screen_effect.gdshader
+│   └── gothic_lighting.gdshader
+├── autoloads/                       # (optional folder for clarity)
+├── addons/                          # If you use any
+└── build/                           # Export folder (gitignored)
+Level2_GothicCathedral (Node2D)
+├── WorldEnvironment
+├── ParallaxBackground
+│   ├── Parallax2D_Far          (Speed Scale: 0.2)
+│   ├── Parallax2D_Mid          (Speed Scale: 0.5)
+│   └── Parallax2D_Fore         (Speed Scale: 0.85)
+├── TileMapLayer_Ground
+├── TileMapLayer_Platforms
+├── TileMapLayer_Walls
+├── TileMapLayer_Details        ← Apply gothic lighting shader here
+├── Player
+│   └── Camera2D (GameCamera + AudioListener2D)
+├── Enemies (Node)
+├── Bosses (Node)
+├── Collectibles (Node)
+├── Checkpoints (Node)
+├── Particles (Node)            ← Ambient candle smoke + floating embers
+└── UI (CanvasLayer)
+    ├── SpellUI
+    ├── FaithMeter
+    └── BossHealthBar
+extends StateMachineBoss
+
+@export var acid_damage: int = 18
+@export var teleport_cooldown: float = 4.0
+@export var acid_pool_cooldown: float = 3.5
+
+var can_teleport: bool = true
+var can_spawn_acid: bool = true
+
+@onready var attack_timer: Timer = $AttackTimer
+@onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
+
+func _ready() -> void:
+    super._ready()
+    max_health = 420
+    health = max_health
+    attack_timer.timeout.connect(_perform_attack)
+
+func _physics_process(delta: float) -> void:
+    if current_state == State.DEAD:
+        return
+    
+    if player and current_state == State.CHASE:
+        var dir = sign(player.global_position.x - global_position.x)
+        velocity.x = dir * 110
+    move_and_slide()
+
+func _perform_attack() -> void:
+    if current_state != State.CHASE:
+        return
+    
+    change_state(State.SPECIAL)
+    
+    var attack_choice = randi() % 3
+    match attack_choice:
+        0: _shadow_teleport()
+        1: _spawn_acid_pools()
+        2: _chart_manipulation()
+
+    await get_tree().create_timer(2.8).timeout
+    change_state(State.CHASE)
+
+func _shadow_teleport() -> void:
+    if not can_teleport or not player:
+        return
+    
+    can_teleport = false
+    print("RUGPULL: Shadow Teleport!")
+    
+    # Teleport behind player with acid splash
+    global_position = player.global_position + Vector2(randf_range(-180, 180), -60)
+    
+    # Spawn acid pool at teleport location
+    _spawn_acid_pool(global_position)
+    
+    get_tree().get_first_node_in_group("camera").apply_acid_shake(35)
+    AudioManager.play_boss_roar()
+    
+    await get_tree().create_timer(teleport_cooldown).timeout
+    can_teleport = true
+
+func _spawn_acid_pools() -> void:
+    if not can_spawn_acid:
+        return
+    
+    can_spawn_acid = false
+    print("RUGPULL: Acid Pools!")
+    
+    for i in range(3):
+        var pos = global_position + Vector2(randf_range(-200, 200), 0)
+        _spawn_acid_pool(pos)
+    
+    await get_tree().create_timer(acid_pool_cooldown).timeout
+    can_spawn_acid = true
+
+func _chart_manipulation() -> void:
+    print("RUGPULL: Chart Manipulation!")
+    get_tree().get_first_node_in_group("camera").apply_shake(40)
+    
+    # Temporarily make some platforms slippery or disappear
+    # (You can connect this to platform scripts later)
+
+func _spawn_acid_pool(pos: Vector2) -> void:
+    var pool = preload("res://scenes/projectiles/AcidPool.tscn").instantiate()
+    pool.global_position = pos
+    get_parent().add_child(pool)
+Level3_AcidicVoid (Node2D)
+├── WorldEnvironment
+├── ParallaxBackground
+│   ├── Parallax2D_Far (Speed 0.15)
+│   ├── Parallax2D_Mid (Speed 0.45)
+│   └── Parallax2D_Fore (Speed 0.8)
+├── TileMapLayer_Ground
+├── TileMapLayer_Platforms      ← Many dissolving platforms
+├── TileMapLayer_Walls
+├── TileMapLayer_Details        ← Apply acid lighting shader
+├── Player
+│   └── Camera2D (GameCamera)
+├── Enemies (Node)
+├── Bosses (Node)               ← RUGPULL the Overlord
+├── Collectibles (Node)
+├── Checkpoints (Node)
+├── AcidAreas (Node)            ← Acid pools & rain zones
+└── UI (CanvasLayer)
+extends StaticBody2D
+
+@export var dissolve_time: float = 2.5
+@export var warning_time: float = 1.0
+@export var respawn_time: float = 6.0
+
+@onready var sprite: Sprite2D = $Sprite2D
+@onready var collision: CollisionShape2D = $CollisionShape2D
+
+var is_dissolving: bool = false
+
+func _ready() -> void:
+    body_entered.connect(_on_body_entered)
+
+func _on_body_entered(body: Node2D) -> void:
+    if body is Player and not is_dissolving:
+        start_dissolving()
+
+func start_dissolving() -> void:
+    is_dissolving = true
+    
+    # Warning flash
+    var warning_tween = create_tween()
+    warning_tween.tween_property(sprite, "modulate", Color(1, 0.3, 0.3), warning_time / 2)
+    warning_tween.tween_property(sprite, "modulate", Color(1, 1, 1), warning_time / 2)
+    
+    await get_tree().create_timer(warning_time).timeout
+    
+    # Dissolve animation
+    var dissolve_tween = create_tween()
+    dissolve_tween.tween_property(sprite, "modulate:a", 0.0, dissolve_time)
+    dissolve_tween.tween_property(sprite, "scale", Vector2(0.1, 0.1), dissolve_time)
+    
+    collision.disabled = true
+    
+    await get_tree().create_timer(dissolve_time).timeout
+    
+    # Respawn after some time
+    await get_tree().create_timer(respawn_time).timeout
+    respawn()
+
+func respawn() -> void:
+    sprite.modulate.a = 1.0
+    sprite.scale = Vector2.ONE
+    collision.disabled = false
+    is_dissolving = false
+extends Node2D
+
+@onready var fade_rect: ColorRect = $ColorRect
+@onready var victory_label: Label = $VictoryLabel
+@onready var stats_label: Label = $StatsLabel
+@onready var particles: GPUParticles2D = $VictoryParticles
+@onready var return_button: Button = $ReturnButton
+
+func _ready() -> void:
+    fade_rect.color.a = 1.0
+    victory_label.text = "The Church of the Pump stands eternal.\nYou have reclaimed the flame."
+    victory_label.modulate.a = 0.0
+    stats_label.modulate.a = 0.0
+    return_button.visible = false
+    particles.emitting = false
+    
+    # Load stats
+    stats_label.text = "Solana Orbs: %d\nFaith Restored: %d" % [SaveSystem.solana_orbs, SaveSystem.faith]
+    
+    start_cinematic()
+
+func start_cinematic() -> void:
+    var fade_tween = create_tween()
+    fade_tween.tween_property(fade_rect, "color:a", 0.0, 3.0)
+    
+    await get_tree().create_timer(2.5).timeout
+    particles.emitting = true
+    
+    var text_tween = create_tween()
+    text_tween.tween_property(victory_label, "modulate:a", 1.0, 2.5)
+    
+    await get_tree().create_timer(2.0).timeout
+    var stats_tween = create_tween()
+    stats_tween.tween_property(stats_label, "modulate:a", 1.0, 2.0)
+    
+    await get_tree().create_timer(4.0).timeout
+    return_button.visible = true
+    return_button.pressed.connect(_return_to_menu)
+
+func _return_to_menu() -> void:
+    var fade_tween = create_tween()
+    fade_tween.tween_property(fade_rect, "color:a", 1.0, 2.0)
+    await fade_tween.finished
+    get_tree().change_scene_to_file("res://scenes/ui/MainMenu.tscn")
+extends Control
+
+@onready var continue_button: Button = $ContinueButton
+@onready var slot_buttons: Array[Button] = [$Slot1Button, $Slot2Button, $Slot3Button]
+
+func _ready() -> void:
+    _refresh_slot_buttons()
+    continue_button.visible = SaveSystem.has_save(SaveSystem.current_slot)
+    continue_button.pressed.connect(_on_continue_pressed)
+
+func _refresh_slot_buttons() -> void:
+    for i in range(3):
+        var btn = slot_buttons[i]
+        var slot = i + 1
+        if SaveSystem.has_save(slot):
+            btn.text = "Slot %d (Saved)" % slot
+        else:
+            btn.text = "Slot %d (New Game)" % slot
+        btn.pressed.connect(_on_slot_pressed.bind(slot))
+
+func _on_slot_pressed(slot: int) -> void:
+    if SaveSystem.has_save(slot):
+        SaveSystem.load_game(slot)
+    else:
+        SaveSystem.new_game(slot)
+    get_tree().change_scene_to_file("res://scenes/levels/Level%d.tscn" % SaveSystem.current_level)
+
+func _on_continue_pressed() -> void:
+    SaveSystem.load_game(SaveSystem.current_slot)
+    get_tree().change_scene_to_file("res://scenes/levels/Level%d.tscn" % SaveSystem.current_level)
+godot --headless --export-release "itch.io Web" ./build/index.html
+extends Node
+class_name ObjectPool
+
+@export var scene: PackedScene
+@export var initial_size: int = 10
+
+var pool: Array[Node] = []
+
+func _ready() -> void:
+    for i in range(initial_size):
+        var instance = scene.instantiate()
+        instance.visible = false
+        instance.set_process(false)
+        add_child(instance)
+        pool.append(instance)
+
+func get_instance() -> Node:
+    for instance in pool:
+        if not instance.visible:
+            instance.visible = true
+            instance.set_process(true)
+            return instance
+    
+    # If pool is empty, create a new one
+    var new_instance = scene.instantiate()
+    add_child(new_instance)
+    pool.append(new_instance)
+    return new_instance
+
+func return_instance(instance: Node) -> void:
+    instance.visible = false
+    instance.set_process(false)
+    # Optional: reset position/scale here if needed
+@onready var platform_pool: ObjectPool = $PlatformPool
+
+func spawn_dissolving_platform(pos: Vector2) -> void:
+    var platform = platform_pool.get_instance()
+    platform.global_position = pos
+    platform.visible = true
+platform_pool.return_instance(self)
+
+HTML to test locally
+godot --headless --export-release "itch.io Web" ./build/index.html
+cd build
+python -m http.server 8000
+godot --headless --export-release "itch.io Web" ./build/index.html && cd build && python -m http.server 8000
+godot --headless --export-release "itch.io Web" ./build/index.html
+extends Node
+class_name ObjectPool
+
+@export var scene: PackedScene
+@export var initial_size: int = 12
+@export var auto_expand: bool = true
+
+var _pool: Array[Node] = []
+var _active: Array[Node] = []
+
+func _ready() -> void:
+    if scene:
+        prewarm(initial_size)
+
+func prewarm(amount: int) -> void:
+    for i in range(amount):
+        var instance = scene.instantiate()
+        _deactivate(instance)
+        add_child(instance)
+        _pool.append(instance)
+
+func get_instance() -> Node:
+    if _pool.size() > 0:
+        var instance = _pool.pop_back()
+        _activate(instance)
+        _active.append(instance)
+        return instance
+    
+    if auto_expand and scene:
+        var new_instance = scene.instantiate()
+        _activate(new_instance)
+        add_child(new_instance)
+        _active.append(new_instance)
+        return new_instance
+    
+    push_warning("ObjectPool is empty and auto_expand is disabled")
+    return null
+
+func return_instance(instance: Node) -> void:
+    if instance in _active:
+        _active.erase(instance)
+        _deactivate(instance)
+        _pool.append(instance)
+
+func _activate(instance: Node) -> void:
+    instance.visible = true
+    instance.set_process(true)
+    if instance.has_method("reset"):
+        instance.reset()
+
+func _deactivate(instance: Node) -> void:
+    instance.visible = false
+    instance.set_process(false)
+extends StaticBody2D
+
+@export var dissolve_time: float = 2.5
+@export var warning_time: float = 1.0
+@export var respawn_delay: float = 5.0
+
+@onready var sprite: Sprite2D = $Sprite2D
+@onready var collision: CollisionShape2D = $CollisionShape2D
+
+var is_dissolving := false
+var original_scale: Vector2
+var original_modulate: Color
+
+func _ready() -> void:
+    original_scale = sprite.scale
+    original_modulate = sprite.modulate
+    body_entered.connect(_on_body_entered)
+
+func reset() -> void:
+    is_dissolving = false
+    sprite.scale = original_scale
+    sprite.modulate = original_modulate
+    collision.disabled = false
+    visible = true
+
+func _on_body_entered(body: Node2D) -> void:
+    if body is Player and not is_dissolving:
+        start_dissolving()
+
+func start_dissolving() -> void:
+    is_dissolving = true
+    
+    # Warning flash
+    var tween = create_tween()
+    tween.tween_property(sprite, "modulate", Color(1.2, 0.4, 0.4), warning_time * 0.5)
+    tween.tween_property(sprite, "modulate", original_modulate, warning_time * 0.5)
+    
+    await get_tree().create_timer(warning_time).timeout
+    
+    if not is_dissolving:
+        return
+    
+    # Dissolve animation
+    var dissolve_tween = create_tween()
+    dissolve_tween.tween_property(sprite, "modulate:a", 0.0, dissolve_time)
+    dissolve_tween.parallel().tween_property(sprite, "scale", Vector2(0.2, 0.2), dissolve_time)
+    
+    collision.disabled = true
+    
+    await get_tree().create_timer(dissolve_time + 0.2).timeout
+    
+    if is_instance_valid(self):
+        get_parent().get_node("PlatformPool").return_instance(self)
+#!/bin/bash
+echo "Building optimized WASM version for itch.io..."
+godot --headless --export-release "itch.io Web - WASM" ./build/index.html
+echo "Build complete! Folder: ./build"
+cd build
+python -m http.server 8000
+godot --headless --export-release "itch.io Web - Optimized" ./build/index.html
+[rendering]
+limits/time/max_frame_time = 0.1
+limits/time/max_physics_steps = 8
+extends Node
+class_name ObjectPool
+
+@export var scene: PackedScene
+@export var initial_size: int = 15
+@export var max_pool_size: int = 50
+
+var _pool: Array[Node] = []
+var _active: Array[Node] = []
+
+func _ready() -> void:
+    if scene:
+        prewarm(initial_size)
+
+func prewarm(amount: int) -> void:
+    for i in range(amount):
+        _create_new_instance()
+
+func get_instance() -> Node:
+    if _pool.size() > 0:
+        var instance = _pool.pop_back()
+        _activate(instance)
+        _active.append(instance)
+        return instance
+    
+    if _active.size() < max_pool_size and scene:
+        var new_instance = _create_new_instance()
+        _activate(new_instance)
+        _active.append(new_instance)
+        return new_instance
+    
+    push_warning("ObjectPool limit reached")
+    return null
+
+func return_instance(instance: Node) -> void:
+    if not is_instance_valid(instance):
+        return
+    
+    if instance in _active:
+        _active.erase(instance)
+    
+    if _pool.size() < max_pool_size:
+        _deactivate(instance)
+        _pool.append(instance)
+    else:
+        instance.queue_free()  # Prevent memory leak
+
+func _create_new_instance() -> Node:
+    var instance = scene.instantiate()
+    _deactivate(instance)
+    add_child(instance)
+    return instance
+
+func _activate(instance: Node) -> void:
+    instance.visible = true
+    instance.set_process(true)
+    if instance.has_method("reset"):
+        instance.reset()
+
+func _deactivate(instance: Node) -> void:
+    instance.visible = false
+    instance.set_process(false)
+
+func clear_pool() -> void:
+    for instance in _pool:
+        if is_instance_valid(instance):
+            instance.queue_free()
+    _pool.clear()
+    
+    for instance in _active:
+        if is_instance_valid(instance):
+            instance.queue_free()
+    _active.clear()
+--wasm-simd
+godot --headless --export-release "itch.io Web - Optimized" ./build/index.html -- --wasm-simd --initial-memory=33554432
+--wasm-simd \
+--initial-memory=33554432 \
+--max-memory=268435456 \
+--compress
+sudo apt update
+sudo apt install openjdk-17-jdk android-sdk
+docker run -d \
+  --name godot-android-builder \
+  -v /path/to/godot:/godot \
+  -v /path/to/android-sdk:/sdk \
+  godot-android
+Wojaks_Nightmares/
+├── project.godot
+├── export_presets.cfg
+├── .gitignore
+├── README.md
+│
+├── assets/
+│   ├── sprites/
+│   │   ├── player/
+│   │   ├── enemies/
+│   │   ├── bosses/
+│   │   └── ui/
+│   ├── textures/
+│   │   ├── posters/
+│   │   └── backgrounds/
+│   ├── audio/
+│   │   ├── music/
+│   │   └── sfx/
+│   └── particles/
+│
+├── scenes/
+│   ├── player/
+│   │   └── Player.tscn
+│   ├── enemies/
+│   │   ├── MadChadler.tscn
+│   │   ├── MadChadler_Gunner.tscn
+│   │   ├── MadChadler_Heavy.tscn
+│   │   └── MadChadler_Elite.tscn
+│   ├── bosses/
+│   │   ├── REKT.tscn
+│   │   ├── FalseMoonAttack.tscn
+│   │   ├── RUGPULL_Overlord.tscn
+│   │   └── LegionOfLiquidation.tscn
+│   ├── levels/
+│   │   ├── Level1.tscn
+│   │   ├── Level2_GothicCathedral.tscn
+│   │   ├── Level3_AcidicVoid.tscn
+│   │   └── Level4_FinalCathedral.tscn
+│   ├── ui/
+│   │   ├── MainMenu.tscn
+│   │   ├── OptionsMenu.tscn
+│   │   ├── SpellUI.tscn
+│   │   ├── FaithMeter.tscn
+│   │   ├── BossHealthBar.tscn
+│   │   ├── GameOver.tscn
+│   │   └── VictoryScreen.tscn
+│   ├── cinematics/
+│   │   └── EndingCinematic.tscn
+│   └── checkpoints/
+│       └── Checkpoint.tscn
+│
+├── scripts/
+│   ├── player/
+│   │   └── Player.gd
+│   ├── enemies/
+│   ├── bosses/
+│   ├── platforms/
+│   │   └── DissolvingPlatform.gd
+│   ├── ui/
+│   ├── systems/
+│   │   ├── SaveSystem.gd          # Autoload
+│   │   ├── AudioManager.gd        # Autoload
+│   │   ├── DifficultyManager.gd   # Autoload
+│   │   └── ObjectPool.gd          # Autoload
+│   └── cinematics/
+│       └── EndingCinematic.gd
+│
+├── shaders/
+│   ├── acid_particle.gdshader
+│   ├── chromatic_aberration.gdshader
+│   ├── acid_screen_effect.gdshader
+│   └── gothic_lighting.gdshader
+│
+├── autoloads/                       # (optional - for clarity)
+│
+├── addons/
+│
+└── build/                           # Export output (gitignored)
+
 
 
     
